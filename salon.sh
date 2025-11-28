@@ -1,62 +1,70 @@
 #!/bin/bash
+
 PSQL="psql -X --username=freecodecamp --dbname=salon --tuples-only -c"
 
 echo -e "\n~~~~~ MY SALON ~~~~~\n"
 
-DISPLAY_SERVICES() {
-  if [[ $1 ]]
+MAIN_MENU() {
+  # Display message if passed
+  if [[ $1 ]]; then echo -e "\n$1"; fi
+
+  echo -e "Welcome to My Salon, how can I help you?\n"
+
+  # Display services from DB
+  SERVICES=$($PSQL "SELECT service_id, name FROM services ORDER BY service_id")
+
+  echo "$SERVICES" | while read SERVICE_ID BAR NAME
+  do
+    echo "$SERVICE_ID) $NAME"
+  done
+
+  # Ask user to pick a service
+  read SERVICE_ID_SELECTED
+
+  # Validate service
+  SERVICE_NAME=$($PSQL "SELECT name FROM services WHERE service_id=$SERVICE_ID_SELECTED")
+
+  if [[ -z $SERVICE_NAME ]]
   then
-    echo "$1"
-    echo -e "1) cut\n2) color\n3) perm\n4) style\n5) trim"
-    # Ask service id
-    read SERVICE_ID_SELECTED
-    echo ""
-    case $SERVICE_ID_SELECTED in
-      1) LOGIC ;;
-      2) LOGIC ;;
-      3) LOGIC ;;
-      4) LOGIC ;;
-      5) LOGIC ;;
-      *) DISPLAY_SERVICES "I could not find that service. What would you like today?" ;;
-    esac
+    MAIN_MENU "I could not find that service. What would you like today?"
   else
-    echo -e "Welcome to My Salon, how can I help you?\n"
-    echo -e "1) cut\n2) color\n3) perm\n4) style\n5) trim"
-    # Ask service id
-    read SERVICE_ID_SELECTED
-    echo ""
-    case $SERVICE_ID_SELECTED in
-      1) LOGIC ;;
-      2) LOGIC ;;
-      3) LOGIC ;;
-      4) LOGIC ;;
-      5) LOGIC ;;
-      *) DISPLAY_SERVICES "I could not find that service. What would you like today?" ;;
-    esac
+    BOOK_APPOINTMENT
   fi
 }
-LOGIC() {
-  # Ask customer phone number
+
+BOOK_APPOINTMENT() {
+  # Ask phone number
   echo -e "\nWhat's your phone number?"
   read CUSTOMER_PHONE
+
+  # Fetch customer ID
   CUSTOMER_ID=$($PSQL "SELECT customer_id FROM customers WHERE phone='$CUSTOMER_PHONE'")
-if [[ -z $CUSTOMER_ID ]]
-then
-  CUSTOMER_NAME=$($PSQL "SELECT name FROM customers WHERE phone='$CUSTOMER_PHONE'")
-  if [[ -z $CUSTOMER_NAME ]]
+
+  # If customer doesn't exist → ask for name and insert
+  if [[ -z $CUSTOMER_ID ]]
   then
     echo -e "\nI don't have a record for that phone number, what's your name?"
     read CUSTOMER_NAME
-    # Insert customer
-    INSERT_CUSTOMER_RESULT=$($PSQL "INSERT INTO customers(phone, name) VALUES('$CUSTOMER_PHONE', '$CUSTOMER_NAME')")
+
+    INSERT_RESULT=$($PSQL "INSERT INTO customers(phone, name) VALUES('$CUSTOMER_PHONE', '$CUSTOMER_NAME')")
+    CUSTOMER_ID=$($PSQL "SELECT customer_id FROM customers WHERE phone='$CUSTOMER_PHONE'")
+  else
+    CUSTOMER_NAME=$($PSQL "SELECT name FROM customers WHERE customer_id=$CUSTOMER_ID")
   fi
-  SERVICE_NAME=$($PSQL "SELECT name FROM services WHERE service_id='$SERVICE_ID_SELECTED'")
+
+  # Trim whitespace
+  SERVICE_NAME=$(echo $SERVICE_NAME | sed 's/^ *//;s/ *$//')
+  CUSTOMER_NAME=$(echo $CUSTOMER_NAME | sed 's/^ *//;s/ *$//')
+
+  # Ask appointment time
   echo -e "\nWhat time would you like your $SERVICE_NAME, $CUSTOMER_NAME?"
   read SERVICE_TIME
-  CUSTOMER_ID=$($PSQL "SELECT customer_id FROM customers WHERE phone='$CUSTOMER_PHONE'")
-  SERVICE_ID=$($PSQL "SELECT service_id FROM services WHERE service_id='$SERVICE_ID_SELECTED'")
-  INSERT_APPOINTMENT_RESULT=$($PSQL "INSERT INTO appointments(customer_id, service_id, time) VALUES($CUSTOMER_ID, $SERVICE_ID_SELECTED, '$SERVICE_TIME')")
+
+  # Insert appointment
+  INSERT_APPT=$($PSQL "INSERT INTO appointments(customer_id, service_id, time) VALUES($CUSTOMER_ID, $SERVICE_ID_SELECTED, '$SERVICE_TIME')")
+
   echo -e "\nI have put you down for a $SERVICE_NAME at $SERVICE_TIME, $CUSTOMER_NAME."
-fi
 }
-DISPLAY_SERVICES
+
+MAIN_MENU
+
